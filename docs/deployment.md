@@ -46,4 +46,6 @@ api/data.js จะรันเป็น Node.js Function แยกจากไ�
 
 ทดสอบทะเบียน รับ 10 จ่าย 3 ยอด 7 ประวัติ มูลค่าคงเหลือ และรายงาน ทดสอบ viewer บันทึกไม่ได้ และ officer จัดการบัญชีไม่ได้ก่อนเริ่มใช้ข้อมูลจริง
 
+หน้า รับวัสดุ/จ่ายวัสดุ: เลือกวัสดุแล้วเลื่อนลงส่วนรายการที่บันทึกแล้ว สามารถค้นหา แก้วันที่ เลขที่เอกสาร จำนวน และบุคคล หรือลบรายการผิดได้เฉพาะ Admin/เจ้าหน้าที่ ระบบใช้ราคาเดิมของรายการ คำนวณยอดและประวัติใหม่ใน transaction และไม่ยอมให้ยอดย้อนหลังติดลบ รายการเดิมที่แก้หรือลบยังตรวจได้ในประวัติการทำรายการ
+
 เอกสารอ้างอิง: [Vercel Node.js Functions](https://vercel.com/docs/functions/runtimes/node-js), [MongoDB Transactions](https://www.mongodb.com/docs/drivers/node/current/crud/transactions/transaction-conv/)

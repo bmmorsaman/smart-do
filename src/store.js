@@ -4,6 +4,7 @@ import {validateChange,validateMaterial} from './procurement.js';
 import {modules} from './domain.js';
 import {validDate,localDate} from './procurement.js';
 import {chronologicalMovements} from './material-calculations.js';
+import {correctLedger} from './movement-corrections.js';
 export const db=createApiClient();
 let demo=false;
 export const isDemo=()=>demo;
@@ -63,6 +64,17 @@ export async function stockEntries(id){
  if(demo)return JSON.parse(localStorage.getItem(movementKey)||'[]').filter(entry=>entry.record_id===id);
  const entries=[];let offset=0;
  for(;;){const {data,error}=await db.from('stock_movements').select('*').eq('record_id',id).order('created_at',{ascending:false}).order('id',{ascending:false}).range(offset,offset+999);if(error)throw error;entries.push(...data);if(data.length<1000)return entries;offset+=1000}
+}
+export async function correctMovement(entry,details){
+ if(demo){
+  const rows=demoRows(),record=rows.find(r=>r.id===entry.record_id),all=JSON.parse(localStorage.getItem(movementKey)||'[]');
+  const before=structuredClone(record),result=correctLedger(record,all.filter(e=>e.record_id===record.id),entry.id,details,'ผู้ทดสอบระบบ',localDate());
+  rows[rows.findIndex(r=>r.id===record.id)]=result.record;
+  localStorage.setItem(storageKey,JSON.stringify(rows));localStorage.setItem(movementKey,JSON.stringify([...all.filter(e=>e.record_id!==record.id),...result.entries]));
+  logDemo('UPDATE',before,result.record);
+  const logs=JSON.parse(localStorage.getItem(auditKey)||'[]');Object.assign(logs[0],{correction:details?'edit':'delete',movement_before:result.previous,movement_after:result.replacement});localStorage.setItem(auditKey,JSON.stringify(logs));return;
+ }
+ const {error}=await db.correctMovement({movement_id:String(entry.id),expected_version:entry.updated_at||entry.created_at,operation:details?'edit':'delete',details});if(error)throw error;
 }
 export async function list(){if(demo)return demoRows().filter(record=>modules[record.module]);const records=[];for(let offset=0;;offset+=1000){const {data,error}=await db.from('records').select('*').in('module',Object.keys(modules)).order('created_at',{ascending:false}).order('id',{ascending:false}).range(offset,offset+999);if(error)throw error;records.push(...data);if(data.length<1000)return records}}
 export async function save(record){if(!modules[record.module])throw Error('ระบบรองรับเฉพาะวัสดุ');if(demo){let rows=demoRows();const existing=rows.find(r=>r.id===record.id);validateChange(record,existing,rows,'admin');validateMaterial(record,existing);if(existing&&record.data.unit!==existing.data.unit&&JSON.parse(localStorage.getItem(movementKey)||'[]').some(e=>e.record_id===record.id))throw Error('วัสดุมีประวัติรับ–จ่ายแล้ว เปลี่ยนหน่วยนับไม่ได้');if(rows.some(r=>r.id!==record.id&&r.module===record.module&&r.code===record.code))throw Error('รหัสรายการซ้ำในทะเบียน');if(!existing)record.id=crypto.randomUUID();record.created_at=existing?.created_at||new Date().toISOString();record.updated_at=new Date().toISOString();rows=rows.filter(r=>r.id!==record.id);rows.unshift(record);localStorage.setItem(storageKey,JSON.stringify(rows));logDemo(existing?'UPDATE':'INSERT',existing,record);return}validateMaterial(record,record.id?record:null);const {error}=await db.from('records').upsert(record);if(error)throw userError(error)}

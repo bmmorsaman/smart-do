@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto';
 import {account,AppError,digest,hashPassword,verifyPassword,token,publicUser,requireText} from './security.js';
 import {validDate,validateMaterial} from '../src/procurement.js';
+import {correctLedger} from '../src/movement-corrections.js';
 const tables=['records','stock_movements','audit_log','material_settings','organization_settings','app_logos','profiles'];
 const categories=['custodians','recipients','groups','units','locations','sources'];
 const clean=row=>{const {normalized_name,...value}=row;return value};
@@ -19,14 +20,15 @@ export function filtered(rows,q){
 export function stockChange(record,entries,args,user,now=new Date()){
  const delta=args.delta,date=args.entry_date,today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
  if(!Number.isFinite(delta)||delta===0||Math.abs(delta)>1e8||!validDate(date)||date<'1900-01-01'||date>today)throw new AppError('จำนวนหรือวันที่รับ–จ่ายไม่ถูกต้อง');
- const movement={id:randomUUID(),record_id:record.id,delta,unit_price:Number(record.amount),reason:requireText(args.reason,300),sender:requireText(args.sender_name,200),recipient:requireText(args.recipient_name||'',200,delta<0),party:delta>0?requireText(args.party_name||'',200,false):'',document_no:requireText(args.document_ref||'',100,false),department:requireText(args.department_name||'',200,false),actor:user.full_name,movement_date:date,created_at:now.toISOString()};
+ const latest=entries.reduce((n,e)=>Math.max(n,Date.parse(e.created_at)||0),0),timestamp=new Date(Math.max(now.getTime(),latest+1)).toISOString();
+ const movement={id:randomUUID(),record_id:record.id,delta,unit_price:Number(record.amount),reason:requireText(args.reason,300),sender:requireText(args.sender_name,200),recipient:requireText(args.recipient_name||'',200,delta<0),party:delta>0?requireText(args.party_name||'',200,false):'',document_no:requireText(args.document_ref||'',100,false),department:requireText(args.department_name||'',200,false),actor:user.full_name,movement_date:date,created_at:timestamp};
  const next=structuredClone(record);next.data.quantity=Number(record.data.quantity)+delta;next.updated_at=now.toISOString();
  let balance=Number(record.data.quantity)-entries.reduce((n,e)=>n+e.delta,0);
  for(const m of [...entries,movement].sort((a,b)=>a.movement_date.localeCompare(b.movement_date)||a.created_at.localeCompare(b.created_at)||a.id.localeCompare(b.id))){balance+=m.delta;if(balance<0)throw new AppError('วัสดุไม่เพียงพอ ณ วันที่จ่าย');if(m.id===movement.id)movement.balance=balance}
  return {next,movement};
 }
 export function createService(repo){
- const audit=async(tx,before,after,user)=>{const row={id:randomUUID(),record_id:after.id,actor:user.full_name,action:before?'UPDATE':'INSERT',old_data:before,new_data:after,created_at:new Date().toISOString()};await tx.put('audit_log',row.id,row)};
+ const audit=async(tx,before,after,user,extra={})=>{const row={id:randomUUID(),record_id:after.id,actor:user.full_name,action:before?'UPDATE':'INSERT',old_data:before,new_data:after,created_at:new Date().toISOString(),...extra};await tx.put('audit_log',row.id,row)};
  const write=async(input,user,fn)=>{
   const id=requireText(input.request_id,100);if(!/^[\w-]+$/.test(id))throw new AppError('รหัสคำขอไม่ถูกต้อง');
   return repo.transaction(async tx=>{const key=user.id+':'+id,previous=await tx.get('requests',key);if(previous)return previous.result;const result=await fn(tx);await tx.put('requests',key,{result,expires:new Date(Date.now()+86400000)});return result});
@@ -56,6 +58,22 @@ export function createService(repo){
    if(!['admin','officer'].includes(user.role))throw new AppError('ไม่มีสิทธิ์บันทึก',403);
    if(input.name!=='move_stock_dated')throw new AppError('คำสั่งไม่ถูกต้อง');
    return write(input,user,async tx=>{const id=requireText(input.args?.material_id,100),record=await tx.get('records',id);if(!record)throw new AppError('ไม่พบวัสดุ');const {next,movement}=stockChange(record,await tx.list('stock_movements',{record_id:id}),input.args,user);await tx.put('records',id,next);await tx.put('stock_movements',movement.id,movement);await audit(tx,record,next,user);return next.data.quantity});
+  }
+  if(input.action==='correct-movement'){
+   if(!['admin','officer'].includes(user.role))throw new AppError('ไม่มีสิทธิ์แก้ไขรายการ',403);
+   if(!['edit','delete'].includes(input.operation))throw new AppError('คำสั่งไม่ถูกต้อง');
+   return write(input,user,async tx=>{
+    const id=requireText(input.movement_id,100),previous=await tx.get('stock_movements',id);if(!previous)throw new AppError('ไม่พบรายการรับ–จ่าย');
+    if(input.expected_version!==(previous.updated_at||previous.created_at))throw new AppError('รายการเปลี่ยนแล้ว กรุณาโหลดข้อมูลใหม่ก่อนแก้ไข',409);
+    const record=await tx.get('records',previous.record_id);if(!record)throw new AppError('ไม่พบวัสดุ');
+    const now=new Date(),today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
+    let result;try{result=correctLedger(record,await tx.list('stock_movements',{record_id:record.id}),id,input.operation==='edit'?input.details:null,user.full_name,today,now.toISOString())}catch(error){throw new AppError(error.message)}
+    await tx.put('records',record.id,result.record);
+    if(input.operation==='delete')await tx.delete('stock_movements',id);
+    for(const entry of result.entries)await tx.put('stock_movements',entry.id,entry);
+    await audit(tx,record,result.record,user,{correction:input.operation,movement_before:result.previous,movement_after:result.replacement});
+    return result.record.data.quantity;
+   });
   }
   if(input.action!=='query'||!tables.includes(input.query?.table))throw new AppError('คำสั่งไม่ถูกต้อง');
   const q=input.query,table=q.table;

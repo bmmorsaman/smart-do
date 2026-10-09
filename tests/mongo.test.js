@@ -11,6 +11,21 @@ function memory(){
 async function fixture(){const repo=memory();await repo.put('users','admin',{id:'admin',email:'admin@example.org',full_name:'ผู้ดูแล',role:'admin',active:true,...await hashPassword('admin-password')});const service=createService(repo),login=await service({action:'login',email:'admin@example.org',password:'admin-password'});let n=0;const call=(input,bearer=login.token)=>service({request_id:'request-'+(++n),...input},bearer);return {repo,service,call,login}}
 const select=table=>({action:'query',query:{table,operation:'select',filters:[],orders:[]}});
 const upsert=(table,value)=>({action:'query',query:{table,operation:'upsert',value}});
+test('Mongo movement correction updates balances, preserves snapshots, audits deletion and protects stale edits',async()=>{
+ const f=await fixture();await f.call(upsert('records',material));const record=(await f.call(select('records')))[0];
+ const move=delta=>f.call({action:'movement',name:'move_stock_dated',args:{material_id:record.id,delta,entry_date:'2026-10-01',reason:delta>0?'รับ':'จ่าย',sender_name:'ผู้ควบคุม',recipient_name:delta<0?'ผู้รับ':''}});
+ await move(10);await move(-3);let entries=await f.call(select('stock_movements')),received=entries.find(e=>e.delta>0),issued=entries.find(e=>e.delta<0);
+ const change=(entry,operation,details)=>({action:'correct-movement',movement_id:entry.id,expected_version:entry.updated_at||entry.created_at,operation,details});
+ const details={quantity:12,movement_date:'2026-10-01',document_no:'แก้เอกสาร',sender:'ผู้ควบคุมใหม่',party:'บริษัท'};
+ assert.equal(await f.call(change(received,'edit',details)),9);
+ entries=await f.call(select('stock_movements'));const revised=entries.find(e=>e.id===received.id);assert.equal(revised.unit_price,125);assert.equal(revised.created_at,received.created_at);assert.equal(revised.sender,'ผู้ควบคุมใหม่');
+ await assert.rejects(f.call(change(received,'edit',details)),/เปลี่ยนแล้ว/);
+ await assert.rejects(f.call(change(revised,'delete')),/ติดลบ/);assert.equal((await f.call(select('records')))[0].data.quantity,9);
+ assert.equal(await f.call(change(issued,'delete')),12);assert.equal((await f.call(select('stock_movements'))).length,1);
+ const log=await f.call(select('audit_log'));assert.equal(log.filter(e=>e.correction).length,2);assert.equal(log.find(e=>e.correction==='delete').movement_before.id,issued.id);
+ await f.repo.put('users','viewer',{id:'viewer',role:'viewer',active:true});await f.repo.put('sessions',digest('viewer-token'),{user_id:'viewer',expires:new Date(Date.now()+60000)});
+ await assert.rejects(f.call(change(revised,'delete'),'viewer-token'),/สิทธิ์/);
+});
 test('Mongo credentials support Thai passwords and use salted hashes',async()=>{const u=await hashPassword('รหัสผ่าน🔑123');assert.equal(await verifyPassword('รหัสผ่าน🔑123',u),true);assert.equal(await verifyPassword('wrong',u),false);assert.equal(u.password_hash.includes('รหัสผ่าน'),false)});
 test('Mongo API enforces authentication and Admin user management',async()=>{
  const f=await fixture();await assert.rejects(f.service(select('records')),/เข้าสู่ระบบ/);
@@ -36,6 +51,13 @@ test('Mongo backdated stock checks chronological balance and valid dates',()=>{
  const args={delta:-1,entry_date:'2026-10-01',reason:'จ่าย',sender_name:'ผู้ควบคุม',recipient_name:'ผู้รับ'};
  assert.throws(()=>stockChange(r,entries,args,{full_name:'ผู้ดูแล'},new Date('2026-10-09')),/ไม่เพียงพอ/);
  assert.throws(()=>stockChange(r,entries,{...args,entry_date:'2026-02-30'},{full_name:'ผู้ดูแล'}),/วันที่/);
+});
+test('Stock entries saved in the same millisecond retain receipt-before-issue order',()=>{
+ const now=new Date('2026-10-09T10:00:00Z'),record={id:'mat',amount:125,data:{quantity:0}},user={full_name:'ผู้ควบคุม'};
+ const args={entry_date:'2026-10-09',reason:'รับจ่าย',sender_name:'ผู้ควบคุม',recipient_name:'ผู้รับ'};
+ const received=stockChange(record,[],{...args,delta:10},user,now);
+ const issued=stockChange(received.next,[received.movement],{...args,delta:-3},user,now);
+ assert.ok(issued.movement.created_at>received.movement.created_at);assert.equal(issued.next.data.quantity,7);
 });
 test('Mongo query validation rejects operator injection and excessive pagination',()=>{
  assert.throws(()=>filtered([],{filters:[{field:'$where',operator:'eq',value:'x'}],orders:[]}),/ตัวกรอง/);

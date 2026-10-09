@@ -2,6 +2,7 @@ import {movement} from './store.js';
 import {openStock} from './stock.js';
 import {settingOptions} from './settings.js';
 import {localDate} from './procurement.js';
+import {showMovementHistory} from './movement-history.js';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function showMovements({rows,user,shell,onReload,initialRecord=null,direction=1}){
  const receiving=direction===1,title=receiving?'รับวัสดุ':'จ่ายวัสดุ';
@@ -23,6 +24,7 @@ export function showMovements({rows,user,shell,onReload,initialRecord=null,direc
    if(source)source.outerHTML=`<select name="party">${settingOptions('sources')}</select>`;
   }
   const form=entry.querySelector('form');
+  const history=document.createElement('section');history.style.marginTop='28px';entry.append(history);showMovementHistory(history,record,direction,user,onReload);
   if(form){
    if(!receiving&&Number(record.data.quantity||0)<=0){form.querySelector('[type="submit"]').disabled=true;entry.querySelector('#movementError').textContent='วัสดุหมดคลัง ยังจ่ายไม่ได้';}
    const preview=()=>{const f=new FormData(form),qty=Number(f.get('quantity')),delta=qty*direction,balance=Number(record.data.quantity||0)+delta;form.elements.value.value=(qty*Number(record.amount)).toFixed(2);entry.querySelector('#movementPreview').textContent=qty>0?`ยอดหลังทำรายการ ${balance} ${record.data.unit||''} · มูลค่ารายการ ${(qty*Number(record.amount)).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2})} บาท${balance<0?' · จำนวนจ่ายเกินยอดคงเหลือ':''}`:'ระบุจำนวนเพื่อดูยอดหลังทำรายการ'};
