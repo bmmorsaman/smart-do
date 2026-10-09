@@ -37,9 +37,9 @@ export function createService(repo){
   if(!input||typeof input!=='object'||Array.isArray(input))throw new AppError('คำขอไม่ถูกต้อง');
   if(input.action==='login'){
    const email=requireText(input.email,254).toLowerCase(),password=input.password;
-   if(typeof password!=='string'||password.length>128)throw new AppError('อีเมลหรือรหัสผ่านไม่ถูกต้อง',401);
+   if(typeof password!=='string'||password.length>128)throw new AppError('ID / อีเมลหรือรหัสผ่านไม่ถูกต้อง',401);
    if(await repo.rate(digest(email))>10)throw new AppError('ลองเข้าสู่ระบบหลายครั้ง กรุณารอ 15 นาที',429);
-   const user=(await repo.list('users',{email}))[0];if(!user||!user.active||!await verifyPassword(password,user))throw new AppError('อีเมลหรือรหัสผ่านไม่ถูกต้อง',401);
+   const user=(await repo.list('users',{email}))[0];if(!user||!user.active||!await verifyPassword(password,user))throw new AppError('ID / อีเมลหรือรหัสผ่านไม่ถูกต้อง',401);
    await repo.delete('login_attempts',digest(email));const value=token();await repo.put('sessions',digest(value),{user_id:user.id,expires:new Date(Date.now()+6*3600000)});return {token:value,user:publicUser(user)};
   }
   const session=typeof bearer==='string'&&bearer.length<200?await repo.get('sessions',digest(bearer)):null;
@@ -52,7 +52,7 @@ export function createService(repo){
    if(input.input?.action==='list')return {users:(await repo.list('users')).map(publicUser)};
    if(input.input?.action!=='create')throw new AppError('คำสั่งไม่ถูกต้อง');
    const a=account(input.input),credentials=await hashPassword(a.password);
-   return write(input,user,async tx=>{if((await tx.list('users',{email:a.email})).length)throw new AppError('อีเมลนี้มีบัญชีแล้ว');const row={id:randomUUID(),email:a.email,full_name:a.full_name,role:a.role,active:true,...credentials};await tx.put('users',row.id,row);return {user:publicUser(row)}});
+   return write(input,user,async tx=>{if((await tx.list('users',{email:a.email})).length)throw new AppError('ID / อีเมลนี้มีบัญชีแล้ว');const row={id:randomUUID(),email:a.email,full_name:a.full_name,role:a.role,active:true,...credentials};await tx.put('users',row.id,row);return {user:publicUser(row)}});
   }
   if(input.action==='movement'){
    if(!['admin','officer'].includes(user.role))throw new AppError('ไม่มีสิทธิ์บันทึก',403);

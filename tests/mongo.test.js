@@ -11,6 +11,18 @@ function memory(){
 async function fixture(){const repo=memory();await repo.put('users','admin',{id:'admin',email:'admin@example.org',full_name:'ผู้ดูแล',role:'admin',active:true,...await hashPassword('admin-password')});const service=createService(repo),login=await service({action:'login',email:'admin@example.org',password:'admin-password'});let n=0;const call=(input,bearer=login.token)=>service({request_id:'request-'+(++n),...input},bearer);return {repo,service,call,login}}
 const select=table=>({action:'query',query:{table,operation:'select',filters:[],orders:[]}});
 const upsert=(table,value)=>({action:'query',query:{table,operation:'upsert',value}});
+
+test('Admin creates non-email login IDs with duplicate protection and existing email compatibility',async()=>{
+ const f=await fixture();
+ const create=email=>f.call({action:'manage-users',input:{action:'create',email,password:'staff-password',full_name:'Staff',role:'officer'}});
+ const created=await create(' Staff01 ');assert.equal(created.user.email,'staff01');
+ const login=await f.service({action:'login',email:' STAFF01 ',password:'staff-password'});
+ assert.equal(login.user.id,created.user.id);
+ await assert.rejects(create('STAFF01'),/มีบัญชีแล้ว/);
+ await assert.rejects(create('staff one'),/ช่องว่าง/);
+ const emailLogin=await f.service({action:'login',email:'admin@example.org',password:'admin-password'});
+ assert.equal(emailLogin.user.role,'admin');
+});
 test('Mongo movement correction updates balances, preserves snapshots, audits deletion and protects stale edits',async()=>{
  const f=await fixture();await f.call(upsert('records',material));const record=(await f.call(select('records')))[0];
  const move=delta=>f.call({action:'movement',name:'move_stock_dated',args:{material_id:record.id,delta,entry_date:'2026-10-01',reason:delta>0?'รับ':'จ่าย',sender_name:'ผู้ควบคุม',recipient_name:delta<0?'ผู้รับ':''}});
