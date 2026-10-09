@@ -1,0 +1,21 @@
+{
+    "name":  "thai-government-procurement",
+    "private":  true,
+    "version":  "1.0.0",
+    "type":  "module",
+    "scripts":  {
+                    "dev":  "vite --host 0.0.0.0",
+                    "build":  "vite build",
+                    "preview":  "vite preview --host 0.0.0.0",
+                    "test":  "node --test tests/*.test.js",
+                    "db:init":  "node scripts/init-mongo.mjs"
+                },
+    "dependencies":  {
+                         "lucide":  "^0.468.0",
+                         "mongodb":  "^7.7.0"
+                     },
+    "devDependencies":  {
+                            "@electric-sql/pglite":  "^0.5.8",
+                            "vite":  "^7.0.0"
+                        }
+}

@@ -1,0 +1,32 @@
+@font-face{font-family:'TH Sarabun New';src:url('/fonts/THSarabunNew.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'TH Sarabun New';src:url('/fonts/THSarabunNew-Bold.ttf') format('truetype');font-weight:700;font-style:normal;font-display:swap}
+.stock-template-page{font-family:'TH Sarabun New',sans-serif;color:#000;background:#fff;font-size:10pt;line-height:1.3}
+.stock-template-page h2{text-align:center;font-family:inherit;font-size:18pt;line-height:1.6;padding:5px 0 7px;margin:0 0 6px;overflow:visible}
+.stock-template-page p{font-size:inherit;margin:0 0 6px}
+.word-agency{margin-left:45%;margin-bottom:8px;text-align:right}
+.word-line{display:inline-block;border-bottom:1px dotted #333;min-width:55%;padding:0 6px}
+.word-line.short{min-width:120px}
+.word-material{display:flex;gap:16px;margin-bottom:12px;align-items:baseline}
+.word-material p:first-child{flex:2}.word-material p{flex:1;min-width:0}
+.word-material .word-line{min-width:0}
+.stock-template-page table{width:100%;table-layout:fixed;border-collapse:collapse;white-space:normal}
+.stock-template-page th,.stock-template-page td{border:1px solid #000;background:#fff;color:#000;font-family:inherit;font-size:10pt;padding:5px 6px;overflow-wrap:break-word;vertical-align:middle}
+.stock-template-page th{text-align:center;font-weight:400}
+.stock-template-page .amount{text-align:right}
+.stock-template-page th,.stock-template-page td:first-child,.stock-template-page .amount{white-space:nowrap}
+.word-signature{width:44%;margin-left:auto;margin-top:calc(22px + 13pt);text-align:center;break-inside:avoid}
+.word-signature p{white-space:nowrap;margin-bottom:6px}
+@media screen{.stock-template-page{min-width:860px;padding:20px}.stock-template-page+.stock-template-page{margin-top:24px;border-top:1px dashed #aaa}body.document-print #printDocument.stock-template-print{overflow-x:auto}}
+@media print{
+ #printDocument.stock-template-print{width:228.6mm;max-width:100%;margin:0 auto;padding:0;background:#fff}
+ .stock-template-page{width:228.6mm;max-width:100%;min-width:0}
+ .stock-template-page .word-signature{width:50%}
+ .stock-template-page{line-height:1.1}
+ .stock-template-page p{margin-bottom:3px}
+ .stock-template-page .word-signature{margin-top:calc(12px + 13pt)}
+ .stock-template-page .word-material{margin-bottom:8px}
+ .stock-template-page{break-after:page}.stock-template-page:last-child{break-after:auto}
+ #printDocument.stock-template-print th,#printDocument.stock-template-print td{font-family:inherit;font-size:10pt;padding:5px;border:1px solid #000;vertical-align:middle;overflow-wrap:break-word}
+ #printDocument.stock-template-print th,#printDocument.stock-template-print td:first-child,#printDocument.stock-template-print .amount{white-space:nowrap!important}
+ #printDocument.stock-template-print tbody td{height:7.5mm}
+}
