@@ -12,6 +12,20 @@ async function fixture(){const repo=memory();await repo.put('users','admin',{id:
 const select=table=>({action:'query',query:{table,operation:'select',filters:[],orders:[]}});
 const upsert=(table,value)=>({action:'query',query:{table,operation:'upsert',value}});
 
+test('Admin deletes zero-stock materials while retaining history and blocking stock loss',async()=>{
+ const f=await fixture();await f.call(upsert('records',material));const r=(await f.call(select('records')))[0];
+ const remove={action:'query',query:{table:'records',operation:'delete',filters:[{field:'id',operator:'eq',value:r.id}]}};
+ await f.repo.put('users','officer',{id:'officer',role:'officer',active:true});await f.repo.put('sessions',digest('staff-token'),{user_id:'officer',expires:new Date(Date.now()+60000)});
+ await assert.rejects(f.call(remove,'staff-token'),/Admin/);
+ await f.repo.put('records',r.id,{...r,data:{...r.data,quantity:14}});
+ await assert.rejects(f.call(remove),/คงเหลือ/);
+ await f.repo.put('records',r.id,r);await f.repo.put('stock_movements','history',{id:'history',record_id:r.id,delta:0});
+ await f.call(remove);assert.equal((await f.call(select('records'))).length,0);
+ assert.ok((await f.repo.get('records',r.id)).deleted_at);assert.equal((await f.call(select('stock_movements'))).length,1);
+ assert.equal((await f.call(select('audit_log'))).filter(e=>e.action==='DELETE').length,1);
+ await assert.rejects(f.call(upsert('records',r)),/ไม่พบทะเบียน/);
+});
+
 test('Admin creates non-email login IDs with duplicate protection and existing email compatibility',async()=>{
  const f=await fixture();
  const create=email=>f.call({action:'manage-users',input:{action:'create',email,password:'staff-password',full_name:'Staff',role:'officer'}});

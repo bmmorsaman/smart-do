@@ -57,7 +57,7 @@ export function createService(repo){
   if(input.action==='movement'){
    if(!['admin','officer'].includes(user.role))throw new AppError('ไม่มีสิทธิ์บันทึก',403);
    if(input.name!=='move_stock_dated')throw new AppError('คำสั่งไม่ถูกต้อง');
-   return write(input,user,async tx=>{const id=requireText(input.args?.material_id,100),record=await tx.get('records',id);if(!record)throw new AppError('ไม่พบวัสดุ');const {next,movement}=stockChange(record,await tx.list('stock_movements',{record_id:id}),input.args,user);await tx.put('records',id,next);await tx.put('stock_movements',movement.id,movement);await audit(tx,record,next,user);return next.data.quantity});
+   return write(input,user,async tx=>{const id=requireText(input.args?.material_id,100),record=await tx.get('records',id);if(!record||record.deleted_at)throw new AppError('ไม่พบวัสดุ');const {next,movement}=stockChange(record,await tx.list('stock_movements',{record_id:id}),input.args,user);await tx.put('records',id,next);await tx.put('stock_movements',movement.id,movement);await audit(tx,record,next,user);return next.data.quantity});
   }
   if(input.action==='correct-movement'){
    if(!['admin','officer'].includes(user.role))throw new AppError('ไม่มีสิทธิ์แก้ไขรายการ',403);
@@ -65,7 +65,7 @@ export function createService(repo){
    return write(input,user,async tx=>{
     const id=requireText(input.movement_id,100),previous=await tx.get('stock_movements',id);if(!previous)throw new AppError('ไม่พบรายการรับ–จ่าย');
     if(input.expected_version!==(previous.updated_at||previous.created_at))throw new AppError('รายการเปลี่ยนแล้ว กรุณาโหลดข้อมูลใหม่ก่อนแก้ไข',409);
-    const record=await tx.get('records',previous.record_id);if(!record)throw new AppError('ไม่พบวัสดุ');
+    const record=await tx.get('records',previous.record_id);if(!record||record.deleted_at)throw new AppError('ไม่พบวัสดุ');
     const now=new Date(),today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
     let result;try{result=correctLedger(record,await tx.list('stock_movements',{record_id:record.id}),id,input.operation==='edit'?input.details:null,user.full_name,today,now.toISOString())}catch(error){throw new AppError(error.message)}
     await tx.put('records',record.id,result.record);
@@ -77,16 +77,23 @@ export function createService(repo){
   }
   if(input.action!=='query'||!tables.includes(input.query?.table))throw new AppError('คำสั่งไม่ถูกต้อง');
   const q=input.query,table=q.table;
-  if(q.operation==='select')return filtered(table==='profiles'?[publicUser(user)]:await repo.list(table),q);
+  if(q.operation==='select')return filtered(table==='profiles'?[publicUser(user)]:(await repo.list(table)).filter(r=>table!=='records'||!r.deleted_at),q);
   if(!['admin','officer'].includes(user.role)||['profiles','stock_movements','audit_log'].includes(table))throw new AppError('ไม่มีสิทธิ์แก้ไขข้อมูล',403);
   return write(input,user,async tx=>{
    if(q.operation==='delete'){
+    if(table==='records'){
+     if(user.role!=='admin')throw new AppError('ลบทะเบียนได้เฉพาะ Admin',403);
+     const f=q.filters?.[0];if(q.filters?.length!==1||f?.operator!=='eq'||f.field!=='id'||typeof f.value!=='string')throw new AppError('ห้ามลบโดยไม่ระบุรหัสวัสดุ');
+     const old=await tx.get(table,f.value);if(!old||old.deleted_at)throw new AppError('ไม่พบทะเบียน');
+     if(Number(old.data.quantity)!==0)throw new AppError('ลบไม่ได้: ยังมีวัสดุคงเหลือ กรุณาตรวจและแก้รายการรับ–จ่ายให้ถูกต้องก่อน');
+     const next={...old,deleted_at:new Date().toISOString(),deleted_by:user.id};await tx.put(table,old.id,next);await audit(tx,old,next,user,{action:'DELETE'});return null;
+    }
     const f=q.filters?.[0];if(!['material_settings','app_logos'].includes(table)||q.filters.length!==1||f.operator!=='eq'||f.field!==(table==='app_logos'?'slot':'id')||typeof f.value!=='string')throw new AppError('ห้ามลบข้อมูลนี้');await tx.delete(table,f.value);return null;
    }
    if(q.operation!=='upsert'||!q.value||typeof q.value!=='object'||Array.isArray(q.value))throw new AppError('ข้อมูลไม่ถูกต้อง');
    const v=q.value;let row,id,old;
    if(table==='records'){
-    id=v.id?requireText(v.id,100):randomUUID();old=await tx.get(table,id);if(v.id&&!old)throw new AppError('ไม่พบทะเบียน');validateMaterial(v,old);
+    id=v.id?requireText(v.id,100):randomUUID();old=await tx.get(table,id);if(v.id&&(!old||old.deleted_at))throw new AppError('ไม่พบทะเบียน');validateMaterial(v,old);
     if(old&&old.data.unit!==v.data.unit&&(await tx.list('stock_movements',{record_id:id})).length)throw new AppError('วัสดุมีประวัติแล้ว เปลี่ยนหน่วยนับไม่ได้');
     if((await tx.list(table,{code:v.code.trim()})).some(r=>r.id!==id))throw new AppError('รหัสวัสดุซ้ำ');
     const data={};for(const key of ['group','unit','location','custodian','notes'])data[key]=requireText(v.data[key]||'',key==='notes'?2000:200,['group','unit'].includes(key));
