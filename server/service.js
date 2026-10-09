@@ -2,6 +2,7 @@ import {randomUUID} from 'node:crypto';
 import {account,AppError,digest,hashPassword,verifyPassword,token,publicUser,requireText} from './security.js';
 import {validDate,validateMaterial} from '../src/procurement.js';
 import {correctLedger} from '../src/movement-corrections.js';
+import {nextMaterialNumber,materialCode} from '../src/material-code.js';
 const tables=['records','stock_movements','audit_log','material_settings','organization_settings','app_logos','profiles'];
 const categories=['custodians','recipients','groups','units','locations','sources'];
 const clean=row=>{const {normalized_name,...value}=row;return value};
@@ -91,9 +92,11 @@ export function createService(repo){
     const f=q.filters?.[0];if(!['material_settings','app_logos'].includes(table)||q.filters.length!==1||f.operator!=='eq'||f.field!==(table==='app_logos'?'slot':'id')||typeof f.value!=='string')throw new AppError('ห้ามลบข้อมูลนี้');await tx.delete(table,f.value);return null;
    }
    if(q.operation!=='upsert'||!q.value||typeof q.value!=='object'||Array.isArray(q.value))throw new AppError('ข้อมูลไม่ถูกต้อง');
-   const v=q.value;let row,id,old;
+   const v=structuredClone(q.value);let row,id,old;
    if(table==='records'){
-    id=v.id?requireText(v.id,100):randomUUID();old=await tx.get(table,id);if(v.id&&(!old||old.deleted_at))throw new AppError('ไม่พบทะเบียน');validateMaterial(v,old);
+    id=v.id?requireText(v.id,100):randomUUID();old=await tx.get(table,id);if(v.id&&(!old||old.deleted_at))throw new AppError('ไม่พบทะเบียน');
+    if(!old&&!v.code){const counter=await tx.get('counters','material-code');const number=nextMaterialNumber(await tx.list('records'),counter?.value||0);v.code=materialCode(number);await tx.put('counters','material-code',{value:number})}
+    validateMaterial(v,old);
     if(old&&old.data.unit!==v.data.unit&&(await tx.list('stock_movements',{record_id:id})).length)throw new AppError('วัสดุมีประวัติแล้ว เปลี่ยนหน่วยนับไม่ได้');
     if((await tx.list(table,{code:v.code.trim()})).some(r=>r.id!==id))throw new AppError('รหัสวัสดุซ้ำ');
     const data={};for(const key of ['group','unit','location','custodian','notes'])data[key]=requireText(v.data[key]||'',key==='notes'?2000:200,['group','unit'].includes(key));

@@ -12,6 +12,15 @@ async function fixture(){const repo=memory();await repo.put('users','admin',{id:
 const select=table=>({action:'query',query:{table,operation:'select',filters:[],orders:[]}});
 const upsert=(table,value)=>({action:'query',query:{table,operation:'upsert',value}});
 
+test('Automatic material codes continue existing and deleted codes and deduplicate retries',async()=>{
+ const f=await fixture();await f.repo.put('records','old',{...material,id:'old',code:'MAT-009',deleted_at:'2026-01-01'});
+ const input={...upsert('records',{...material,code:''}),request_id:'auto-code'};
+ await f.call(input);await f.call(input);
+ assert.equal((await f.call(select('records')))[0].code,'MAT-010');
+ await f.call(upsert('records',{...material,code:''}));
+ assert.deepEqual((await f.call(select('records'))).map(r=>r.code),['MAT-010','MAT-011']);
+});
+
 test('Admin deletes zero-stock materials while retaining history and blocking stock loss',async()=>{
  const f=await fixture();await f.call(upsert('records',material));const r=(await f.call(select('records')))[0];
  const remove={action:'query',query:{table:'records',operation:'delete',filters:[{field:'id',operator:'eq',value:r.id}]}};
