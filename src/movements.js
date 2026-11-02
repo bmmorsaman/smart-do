@@ -3,6 +3,7 @@ import {openStock} from './stock.js';
 import {settingOptions} from './settings.js';
 import {localDate} from './procurement.js';
 import {showMovementHistory} from './movement-history.js';
+import {openReceiptImport} from './receipt-import.js';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function showMovements({rows,user,shell,onReload,initialRecord=null,direction=1}){
  const receiving=direction===1,title=receiving?'รับวัสดุ':'จ่ายวัสดุ';
@@ -10,6 +11,7 @@ export function showMovements({rows,user,shell,onReload,initialRecord=null,direc
  const editable=['admin','officer'].includes(user.role);
  shell(`<p class="muted">${receiving?'ค้นหาวัสดุที่รับเข้า แล้วระบุจำนวนและผู้ควบคุมวัสดุ':'ค้นหาวัสดุที่ต้องการเบิก แล้วระบุจำนวน ผู้ควบคุมวัสดุ และผู้รับ'}</p><div class="toolbar"><input id="movementSearch" type="search" aria-label="ค้นหาวัสดุรับจ่าย" placeholder="ค้นหารหัส ชื่อวัสดุ หรือหมวดวัสดุ"><span id="movementMatches" class="muted" aria-live="polite"></span></div><div id="movementResults"></div><section id="movementEntry" class="report" hidden></section>`);
  const results=document.querySelector('#movementResults'),entry=document.querySelector('#movementEntry');
+ if(receiving&&editable){const button=document.createElement('button');button.id='importReceipts';button.className='secondary';button.textContent='รับวัสดุด้วย CSV หลายรายการ';document.querySelector('#movementSearch').after(button);button.onclick=()=>openReceiptImport({rows:materials,onReload})}
  document.querySelector(`[data-page="${receiving?'receipts':'issues'}"]`)?.classList.add('active');
  function select(record){
   selected=record;entry.hidden=false;

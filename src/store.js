@@ -98,6 +98,6 @@ export async function movement(id,quantity,note,details={}){
   const balances=new Map(history.map(e=>[e.id,e.balance]));entries.unshift(next);for(const e of entries)if(e.record_id===id)e.balance=balances.get(e.id);
   localStorage.setItem(storageKey,JSON.stringify(rows));localStorage.setItem(movementKey,JSON.stringify(entries));logDemo('UPDATE',before,r);return;
  }
- const {error}=await db.rpc('move_stock_dated',{material_id:id,delta:quantity,reason:note,document_ref:details.document_no||'',party_name:details.party||'',department_name:details.department||'',sender_name:details.sender||'',recipient_name:details.recipient||'',entry_date:entryDate});
+ const {error}=await db.rpc('move_stock_dated',{material_id:id,delta:quantity,reason:note,document_ref:details.document_no||'',party_name:details.party||'',department_name:details.department||'',sender_name:details.sender||'',recipient_name:details.recipient||'',entry_date:entryDate},details.request_id);
  if(error)throw userError(error);
 }
