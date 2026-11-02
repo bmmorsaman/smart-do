@@ -112,7 +112,7 @@ export function createService(repo){
     if(old&&old.data.unit!==v.data.unit&&(await tx.list('stock_movements',{record_id:id})).length)throw new AppError('วัสดุมีประวัติแล้ว เปลี่ยนหน่วยนับไม่ได้');
     if((await tx.list(table,{code:v.code.trim()})).some(r=>r.id!==id))throw new AppError('รหัสวัสดุซ้ำ');
     const data={};for(const key of ['group','unit','location','custodian','notes'])data[key]=requireText(v.data[key]||'',key==='notes'?2000:200,['group','unit'].includes(key));
-    data.minimum=Number(v.data.minimum||0);data.quantity=old?.data.quantity||0;
+    data.quantity=old?.data.quantity||0;
     row={id,module:'materials',code:v.code.trim(),title:v.title.trim(),amount:Number(v.amount),status:typeof v.status==='string'?v.status:'',fiscal_year:v.fiscal_year,data,created_at:old?.created_at||new Date().toISOString(),updated_at:new Date().toISOString()};
    }else if(table==='material_settings'){
     if(!categories.includes(v.category))throw new AppError('หมวดตั้งค่าไม่ถูกต้อง');id=v.id?requireText(v.id,100):randomUUID();old=await tx.get(table,id);const name=requireText(v.name,200);if(old&&old.category!==v.category)throw new AppError('เปลี่ยนหมวดไม่ได้');const normalized_name=name.toLowerCase();if((await tx.list(table,{category:v.category,normalized_name})).some(r=>r.id!==id))throw new AppError('ชื่อรายการซ้ำ');row={id,category:v.category,name,normalized_name,active:v.active!==false};

@@ -16,13 +16,13 @@ const types={
  receipts:['รายงานรับวัสดุ','รายการจากหน้ารับวัสดุ: จำนวน มูลค่า และผู้ควบคุมวัสดุ ไม่มีผู้รับ',true],
  issues:['รายงานจ่ายวัสดุ','รายการจากหน้าจ่ายวัสดุ: จำนวน มูลค่า ผู้ควบคุมวัสดุ และผู้รับ',true],
  ledger:['Stock Card / ประวัติวัสดุ','ประวัติรับ–จ่ายของวัสดุแต่ละรายการ พร้อมจำนวน มูลค่า และยอดหลังทำรายการ',true],
- low:['วัสดุหมด / ถึงจุดสั่งซื้อ','วัสดุที่ยอดเป็นศูนย์หรือคงเหลือไม่เกินจุดสั่งซื้อที่ตั้งไว้ในทะเบียน',false],
+ low:['วัสดุหมดคลัง','วัสดุที่มียอดคงเหลือเป็นศูนย์',false],
 };
 export async function showMaterialReports({rows,shell,type='movements'}){
  if(!types[type])type='movements';
  const [title,description,dated]=types[type],current=['balances','low'].includes(type),details=['ledger','receipts','issues'].includes(type),today=localDate();
- const headers=type==='materials'?[...materialSummaryHeaders]:current?['รหัสวัสดุ','ชื่อวัสดุ','หมวด','หน่วยนับ','ราคาต่อหน่วย (บาท)','จำนวนคงเหลือ','มูลค่าคงเหลือ (บาท)','จุดสั่งซื้อ','สถานะ',...(type==='low'?['ขาดจากจุดสั่งซื้อ']:[])]:details?['วันที่รับ / จ่าย','รหัสวัสดุ','ชื่อวัสดุ','ประเภท','จำนวน','หน่วยนับ','ราคาต่อหน่วย (บาท)','มูลค่า (บาท)','ยอดหลังรายการ','ผู้ควบคุมวัสดุ','ผู้รับ']:['รหัสวัสดุ','ชื่อวัสดุ','หน่วยนับ','ยอดก่อนช่วงวันที่','จำนวนรับ','จำนวนจ่าย','ยอดสิ้นช่วง','มูลค่ารับ (บาท)','มูลค่าจ่าย (บาท)','มูลค่าคงเหลือ ณ สิ้นช่วง (ราคาปัจจุบัน)'];
- const numeric=type==='materials'?[2,3,4,6,7,8,10,11,12]:current?[4,5,6,7,...(type==='low'?[9]:[])]:details?[4,6,7,8]:[3,4,5,6,7,8,9];
+ const headers=type==='materials'?[...materialSummaryHeaders]:current?['รหัสวัสดุ','ชื่อวัสดุ','หมวด','หน่วยนับ','ราคาต่อหน่วย (บาท)','จำนวนคงเหลือ','มูลค่าคงเหลือ (บาท)','สถานะ']:details?['วันที่รับ / จ่าย','รหัสวัสดุ','ชื่อวัสดุ','ประเภท','จำนวน','หน่วยนับ','ราคาต่อหน่วย (บาท)','มูลค่า (บาท)','ยอดหลังรายการ','ผู้ควบคุมวัสดุ','ผู้รับ']:['รหัสวัสดุ','ชื่อวัสดุ','หน่วยนับ','ยอดก่อนช่วงวันที่','จำนวนรับ','จำนวนจ่าย','ยอดสิ้นช่วง','มูลค่ารับ (บาท)','มูลค่าจ่าย (บาท)','มูลค่าคงเหลือ ณ สิ้นช่วง (ราคาปัจจุบัน)'];
+ const numeric=type==='materials'?[2,3,4,6,7,8,10,11,12]:current?[4,5,6]:details?[4,6,7,8]:[3,4,5,6,7,8,9];
  if(current)headers.push('ผู้ควบคุมวัสดุ','สถานที่เก็บ');
  if(type==='receipts'){headers[0]='วันที่รับวัสดุ';headers[9]='ผู้ควบคุมวัสดุ';headers.pop()}
  if(type==='issues'){headers[0]='วันที่จ่ายวัสดุ';headers[9]='ผู้ควบคุมวัสดุ'}
@@ -40,8 +40,8 @@ export async function showMaterialReports({rows,shell,type='movements'}){
    const terms=search.value.trim().toLowerCase().split(/\s+/).filter(Boolean),selected=rows.filter(r=>(!material.value||r.id===material.value)&&(!group.value||r.data.group===group.value)&&terms.every(t=>`${r.code} ${r.title}`.toLowerCase().includes(t)));
    metadata=[['รายงาน',title],['หน่วยงาน',organization().name],['ที่อยู่',organization().address],['ขอบเขตวันที่',dated?`${from} ถึง ${to}`:`ยอดปัจจุบัน ณ ${today}`],['วัสดุ',material.selectedOptions[0].textContent],['หมวด',group.value||'ทุกหมวด'],['คำค้น',search.value.trim()||'ทั้งหมด'],['จัดทำเมื่อ',new Date().toLocaleString('th-TH')]];
    for(const r of selected){
-    const qty=Number(r.data.quantity||0),min=Number(r.data.minimum||0);
-    if(current){if(type==='low'&&qty>min)continue;output.push([r.code,r.title,r.data.group||'ไม่ระบุหมวด',r.data.unit,Number(r.amount),qty,qty*Number(r.amount),min,qty===0?'หมดคลัง':qty<=min?'ถึงจุดสั่งซื้อ':'ปกติ',...(type==='low'?[Math.max(0,min-qty)]:[])])}
+    const qty=Number(r.data.quantity||0);
+    if(current){if(type==='low'&&qty>0)continue;output.push([r.code,r.title,r.data.group||'ไม่ระบุหมวด',r.data.unit,Number(r.amount),qty,qty*Number(r.amount),qty===0?'หมดคลัง':'มีคงเหลือ'])}
     else{const entries=chronologicalMovements(r,await stockEntries(r.id));if(!target.isConnected)return;
      if(type==='materials'){output.push(materialSummaryRow(r,entries,from,to))}
      else if(type==='movements'){const s=summarizeMaterial(r,entries,from,to);output.push([r.code,r.title,r.data.unit,s.opening,s.received,s.issued,s.closing,s.receivedValue,s.issuedValue,s.closing*Number(r.amount)])}
@@ -52,7 +52,7 @@ export async function showMaterialReports({rows,shell,type='movements'}){
    if(current)output=output.map(row=>{const record=rows.find(r=>r.code===row[0]);return [...row,record.data.custodian||'',record.data.location||'']});
    if(type==='receipts')output=output.map(row=>[...row.slice(0,10),...row.slice(-3)]);
    const sum=index=>output.reduce((n,r)=>n+Number(r[index]||0),0);
-   if(current){summaries=[['วัสดุที่แสดง',`${output.length} รายการ`],['มูลค่าคงเหลือ',`${money(sum(6))} บาท`],['หมดคลัง',`${output.filter(r=>r[5]===0).length} รายการ`],['ถึงจุดสั่งซื้อ (รวมหมด)',`${output.filter(r=>r[5]<=r[7]).length} รายการ`]];note='มูลค่าคงเหลือ = จำนวนคงเหลือ × ราคาต่อหน่วยปัจจุบัน';if(type==='low')note+=' จำนวนที่ขาดจากจุดสั่งซื้อเป็นผลต่าง ไม่ใช่จำนวนสั่งซื้อที่ระบบแนะนำ'}
+   if(current){summaries=[['วัสดุที่แสดง',`${output.length} รายการ`],['มูลค่าคงเหลือ',`${money(sum(6))} บาท`],['หมดคลัง',`${output.filter(r=>r[5]===0).length} รายการ`],['มีคงเหลือ',`${output.filter(r=>r[5]>0).length} รายการ`]];note='มูลค่าคงเหลือ = จำนวนคงเหลือ × ราคาต่อหน่วยปัจจุบัน'}
    else if(details){output.sort((a,b)=>String(a[0]).localeCompare(String(b[0]))||String(a.at(-1)).localeCompare(String(b.at(-1))));summaries=[['รายการเคลื่อนไหว',`${output.length} ครั้ง`],['วัสดุ',`${new Set(output.map(r=>r[1])).size} รายการ`],['มูลค่ารายการ',`${money(sum(7))} บาท`]];note='ยอดหลังรายการเป็นยอดคงเหลือของวัสดุนั้นหลังรับหรือจ่ายแต่ละครั้ง มูลค่ารายการ = จำนวน × ราคาที่บันทึกขณะทำรายการ วันที่รับ–จ่ายเป็นวันที่ระบุในแบบฟอร์ม ส่วนบันทึกเมื่อเป็นเวลาบันทึกจริง'}
    else if(type==='materials'){summaries=[['วัสดุที่แสดง',`${output.length} รายการ`],['มูลค่ายกมา',`${money(sum(3))} บาท`],['มูลค่าจัดซื้อ / รับเข้า',`${money(sum(7))} บาท`],['มูลค่าใช้ไป / จ่ายออก',`${money(sum(11))} บาท`],['มูลค่าคงเหลือ',`${money(sum(12))} บาท`]];note='จัดซื้อหมายถึงรายการรับเข้าทั้งหมด ใช้ไปหมายถึงรายการจ่ายออก ราคาต่อหน่วยจัดซื้อและใช้ไปเป็นราคาเฉลี่ยถ่วงน้ำหนักจากราคาที่บันทึกขณะทำรายการ ช่อง — หมายถึงไม่ทราบราคา ยอดรวมไม่รวมรายการที่ไม่ทราบราคา มูลค่ายกมาและคงเหลือใช้ราคาต่อหน่วยปัจจุบัน จึงอาจไม่เท่ากับมูลค่ายกมา + จัดซื้อ − ใช้ไปเมื่อมีการเปลี่ยนราคา'}
    else{summaries=[['วัสดุที่แสดง',`${output.length} รายการ`],['มูลค่ารับ',`${money(sum(7))} บาท`],['มูลค่าจ่าย',`${money(sum(8))} บาท`],['มูลค่าคงเหลือ',`${money(sum(9))} บาท`]];note='มูลค่าคงเหลือ ณ สิ้นช่วง = ยอดสิ้นช่วง × ราคาต่อหน่วยปัจจุบัน ยอดสิ้นช่วง = ยอดก่อนช่วงวันที่ + จำนวนรับ − จำนวนจ่าย ไม่รวมจำนวนของวัสดุต่างหน่วยเข้าด้วยกัน รายงานใช้วันที่รับ–จ่ายที่ระบุ ยอดย้อนหลังอาศัยประวัติที่บันทึกไว้ หากไม่มีประวัติใช้ยอดปัจจุบัน'}

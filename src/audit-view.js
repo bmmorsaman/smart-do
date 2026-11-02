@@ -1,5 +1,5 @@
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const labels={code:'รหัสวัสดุ',title:'ชื่อวัสดุ',amount:'ราคาต่อหน่วย',group:'หมวดวัสดุ',unit:'หน่วยนับ',minimum:'จุดสั่งซื้อ',location:'สถานที่เก็บ',custodian:'ผู้ควบคุมวัสดุ',quantity:'จำนวนคงเหลือ',notes:'หมายเหตุ'};
+const labels={code:'รหัสวัสดุ',title:'ชื่อวัสดุ',amount:'ราคาต่อหน่วย',group:'หมวดวัสดุ',unit:'หน่วยนับ',location:'สถานที่เก็บ',custodian:'ผู้ควบคุมวัสดุ',quantity:'จำนวนคงเหลือ',notes:'หมายเหตุ'};
 const flatten=r=>({...r?.data,code:r?.code,title:r?.title,amount:r?.amount});
 export function auditHtml(entries){
  return entries.map(e=>{

@@ -6,7 +6,7 @@ export const legalSources=[
  {title:'ว 804 ลงวันที่ 12 พฤศจิกายน 2568',url:'https://www.moc.go.th/th/file/get/file/2025111345adc18eb5c1fbc972d389b3a989552c140910.pdf',detail:'แนวทางเฉพาะการจัดซื้อครั้งหนึ่งไม่เกิน 50,000 บาท'}
 ];
 export const fields={
- materials:[['group','หมวดวัสดุ','text'],['unit','หน่วยนับ','text'],['minimum','จุดสั่งซื้อ','number'],['location','สถานที่เก็บ','text'],['custodian','ผู้ควบคุมวัสดุ','text']],
+ materials:[['group','หมวดวัสดุ','text'],['unit','หน่วยนับ','text'],['location','สถานที่เก็บ','text'],['custodian','ผู้ควบคุมวัสดุ','text']],
 };
 export function canEditField(record,key,role){return ['admin','officer'].includes(role)}
 export function validateChange(record,previous){
@@ -17,7 +17,6 @@ export function validateMaterial(record,previous){
  if(!String(record.code||'').trim()||String(record.code).length>100||!String(record.title||'').trim()||String(record.title).length>300)throw Error('ระบุรหัสและชื่อวัสดุให้ถูกต้อง');
  if(!Number.isFinite(Number(record.amount))||Number(record.amount)<0||Number(record.amount)>=1e14)throw Error('ราคาต่อหน่วยไม่ถูกต้อง');
  if(!String(record.data?.unit||'').trim()||!String(record.data?.group||'').trim())throw Error('เลือกหมวดวัสดุและหน่วยนับ');
- if(!Number.isFinite(Number(record.data.minimum||0))||Number(record.data.minimum||0)<0)throw Error('จุดสั่งซื้อต้องเป็นจำนวนตั้งแต่ศูนย์');
  if(previous&&Number(record.data.quantity||0)!==Number(previous.data.quantity||0))throw Error('เปลี่ยนยอดผ่านหน้ารับหรือจ่ายวัสดุเท่านั้น');
  if(!previous&&Number(record.data.quantity||0)!==0)throw Error('ทะเบียนใหม่เริ่มต้นยอดศูนย์ แล้วบันทึกรับวัสดุ');
 }
