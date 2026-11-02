@@ -3,6 +3,7 @@ const labels={code:'รหัสวัสดุ',title:'ชื่อวัสด
 const flatten=r=>({...r?.data,code:r?.code,title:r?.title,amount:r?.amount});
 export function auditHtml(entries){
  return entries.map(e=>{
+  if(e.action==='RESET')return `<details><summary>${esc(new Date(e.created_at).toLocaleString('th-TH'))} · รีเซ็ตข้อมูลวัสดุ</summary><p>ผู้ดำเนินการ: ${esc(e.actor||'ไม่ระบุ')}</p><p>ลบทะเบียน ${esc(e.reset_counts?.records||0)} รายการ และรับ–จ่าย ${esc(e.reset_counts?.stock_movements||0)} รายการ โดยเก็บการตั้งค่าและบัญชีผู้ใช้ไว้</p></details>`;
   const before=flatten(e.old_data),after=flatten(e.new_data),record=e.new_data||e.old_data||{},kind=e.correction==='delete'?'ลบรายการรับ–จ่าย':e.correction==='edit'?'แก้ไขรายการรับ–จ่าย':e.action==='DELETE'?'ลบทะเบียน':e.action==='INSERT'?'เพิ่มทะเบียน':before.quantity!==after.quantity?'รับ–จ่ายวัสดุ':'แก้ไขทะเบียน';
   const changes=Object.entries(labels).filter(([key])=>JSON.stringify(before[key]??'')!==JSON.stringify(after[key]??''));
   const movementChanges=e.correction?[['movement_date','วันที่รับ–จ่าย'],['document_no','เลขที่เอกสาร'],['delta','จำนวนรับ (+) / จ่าย (−)'],['sender','ผู้ควบคุมวัสดุ'],['party','รับจาก'],['recipient','ผู้รับ']].filter(([key])=>JSON.stringify(e.movement_before?.[key]??'')!==JSON.stringify(e.movement_after?.[key]??'')):[];

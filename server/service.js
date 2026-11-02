@@ -47,6 +47,18 @@ export function createService(repo){
   const user=session&&new Date(session.expires)>new Date()?await repo.get('users',session.user_id):null;
   if(!user?.active)throw new AppError('กรุณาเข้าสู่ระบบใหม่',401);
   if(input.action==='identity')return publicUser(user);
+  if(input.action==='reset-materials'){
+   if(user.role!=='admin')throw new AppError('รีเซ็ตข้อมูลได้เฉพาะ Admin',403);
+   if(input.confirmation!=='ลบข้อมูลวัสดุทั้งหมด')throw new AppError('พิมพ์ข้อความยืนยันให้ตรงก่อนรีเซ็ต');
+   if(await repo.rate(digest('reset:'+user.id))>10)throw new AppError('ลองรีเซ็ตหลายครั้ง กรุณารอ 15 นาที',429);
+   if(typeof input.password!=='string'||input.password.length>128||!await verifyPassword(input.password,user))throw new AppError('รหัสผ่าน Admin ไม่ถูกต้อง',403);
+   return write(input,user,async tx=>{
+    const counts={};
+    for(const table of ['records','stock_movements','audit_log']){const rows=await tx.list(table);counts[table]=rows.length;for(const row of rows)await tx.delete(table,row.id)}
+    const id=randomUUID();await tx.put('audit_log',id,{id,actor:user.full_name,action:'RESET',old_data:null,new_data:null,created_at:new Date().toISOString(),reset_counts:counts});
+    return counts;
+   });
+  }
   if(input.action==='logout'){await repo.delete('sessions',digest(bearer));return null}
   if(input.action==='manage-users'){
    if(user.role!=='admin')throw new AppError('ใช้ได้เฉพาะ Admin',403);

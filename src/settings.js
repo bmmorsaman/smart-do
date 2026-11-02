@@ -1,6 +1,7 @@
 import {db,isDemo,seedDemoSettings} from './store.js';
 import {showLogoSettings} from './branding.js';
 import {openSettingsImport} from './settings-import.js';
+import {showResetMaterials} from './reset-materials.js';
 const storageKey='thai-material-settings-v1';
 export const settingCategories={custodians:'ผู้ควบคุมวัสดุ',recipients:'ผู้รับ',groups:'หมวดวัสดุ',units:'หน่วยนับ',locations:'สถานที่เก็บ',sources:'รับจาก'};
 let entries=[];
@@ -47,6 +48,7 @@ export function showSettings({shell,user}){
   })};
  });
  showLogoSettings(user);
+ showResetMaterials(user);
  if(editable){const button=document.createElement('button');button.className='secondary';button.id='importSettings';button.textContent='นำเข้ารายการตั้งค่า CSV';document.querySelector('.settings-grid').before(button);button.onclick=()=>openSettingsImport({entries,writeSetting,onReload:async()=>{await loadSettings();showSettings({shell,user})}})}
  document.querySelector('[data-page="settings"]')?.classList.add('active');
 }

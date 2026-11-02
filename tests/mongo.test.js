@@ -12,6 +12,23 @@ async function fixture(){const repo=memory();await repo.put('users','admin',{id:
 const select=table=>({action:'query',query:{table,operation:'select',filters:[],orders:[]}});
 const upsert=(table,value)=>({action:'query',query:{table,operation:'upsert',value}});
 
+test('Reset requires Admin password and confirmation, deletes stock data and preserves configuration and users',async()=>{
+ const f=await fixture();await f.call(upsert('records',material));
+ for(const [table,id] of [['material_settings','setting'],['organization_settings','1'],['app_logos','ministry'],['counters','material-code']])await f.repo.put(table,id,{id,value:9});
+ await f.repo.put('stock_movements','move',{id:'move'});
+ const reset={action:'reset-materials',confirmation:'ลบข้อมูลวัสดุทั้งหมด',password:'admin-password',request_id:'reset-once'};
+ await assert.rejects(f.call({...reset,confirmation:'wrong'}),/ยืนยัน/);
+ await assert.rejects(f.call({...reset,password:'wrong'}),/รหัสผ่าน/);
+ assert.equal((await f.call(select('records'))).length,1);
+ await f.repo.put('users','officer',{id:'officer',role:'officer',active:true});await f.repo.put('sessions',digest('staff-reset'),{user_id:'officer',expires:new Date(Date.now()+60000)});
+ await assert.rejects(f.call(reset,'staff-reset'),/Admin/);
+ const result=await f.call(reset);assert.equal(result.records,1);assert.equal(result.stock_movements,1);
+ assert.equal((await f.call(select('records'))).length,0);assert.equal((await f.call(select('stock_movements'))).length,0);
+ assert.equal((await f.call(select('audit_log')))[0].action,'RESET');
+ for(const [table,id] of [['material_settings','setting'],['organization_settings','1'],['app_logos','ministry'],['counters','material-code'],['users','admin']])assert.ok(await f.repo.get(table,id));
+ assert.deepEqual(await f.call(reset),result);
+});
+
 test('Automatic material codes continue existing and deleted codes and deduplicate retries',async()=>{
  const f=await fixture();await f.repo.put('records','old',{...material,id:'old',code:'MAT-009',deleted_at:'2026-01-01'});
  const input={...upsert('records',{...material,code:''}),request_id:'auto-code'};
