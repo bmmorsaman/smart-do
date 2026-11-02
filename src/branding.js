@@ -1,7 +1,7 @@
 import {db,isDemo} from './store.js';
 import {organization,setOrganization,defaultOrganization} from './organization.js';
 const key='thai-material-demo-logos-v1';
-const slots={ministry:['โลโก้หน่วยงาน','/logos/ministry.svg'],health_center:['โลโก้ รพ.สต.','/logos/health-center.svg']};
+const slots={ministry:['โลโก้หน่วยงาน','/logos/ministry.png'],health_center:['โลโก้ รพ.สต.','/logos/health-center.png']};
 let logos={};
 export const logoUrl=slot=>logos[slot]||slots[slot][1];
 export async function loadBranding(){
